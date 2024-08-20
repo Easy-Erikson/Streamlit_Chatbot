@@ -17,12 +17,12 @@ from dotenv import load_dotenv
 load_dotenv(override=True)
 
 # Configuration parameters
-DEFAULT_DIRECTORY = "/Users/erik/Library/Mobile Documents/com~apple~CloudDocs/Documents/Arbeit"
-DEFAULT_MODEL_NAME = ["gpt-4o-mini", "gpt-4o", "gpt-3.5-turbo"]
+DEFAULT_DIRECTORY = "./data"
+DEFAULT_MODEL_NAME = "gpt-4o"
 DEFAULT_EMBEDDING_MODEL = "text-embedding-3-large"
 DEFAULT_TEMPERATURE = 0.0
 DEFAULT_MAX_TOKENS = 2048
-DEFAULT_TOP_K = 5
+DEFAULT_TOP_K = 10
 DEFAULT_CHUNK_SIZE = 2000
 DEFAULT_CHUNK_OVERLAP = 300
 DEFAULT_PROMPT_TEMPLATE = """Du bist ein unternehmensspezifischer Chatbot, der darauf ausgelegt ist,
@@ -54,7 +54,6 @@ def load_docs(directory, chunk_size=1000, chunk_overlap=200):
 
         # Load the documents using TextLoader
         documents = []
-        progress_bar = st.progress(0)
         for i, file in enumerate(files):
             print(file)
             if file.endswith('.pdf'):
@@ -71,7 +70,6 @@ def load_docs(directory, chunk_size=1000, chunk_overlap=200):
             elif file.endswith('.md'):
                 doc = TextLoader(file)
                 documents.extend(doc.load())
-            progress_bar.progress((i + 1) / len(files))
         
         print(f"Loaded {len(documents)} documents")
 
@@ -128,31 +126,30 @@ def main():
     st.set_page_config(page_title="Chat with Markdown Files", page_icon=":books:")
     st.title("_DEVK-GPT_")
     st.logo("https://upload.wikimedia.org/wikipedia/de/thumb/9/92/DEVK_201x_logo.svg/1200px-DEVK_201x_logo.svg.png")
+    
+        # Configuration inputs
+    directory = DEFAULT_DIRECTORY
+    model_name = DEFAULT_MODEL_NAME
+    embedding_model = DEFAULT_EMBEDDING_MODEL
+    prompt_template = DEFAULT_PROMPT_TEMPLATE
+    temperature = DEFAULT_TEMPERATURE
+    max_tokens = DEFAULT_MAX_TOKENS
+    chunk_size = DEFAULT_CHUNK_SIZE
+    chunk_overlap = DEFAULT_CHUNK_OVERLAP
 
+    # Initialize vector store on first run
+    if "vector_store" not in st.session_state:
+        if directory and os.path.isdir(directory):
+            texts = load_docs(directory, chunk_size=chunk_size, chunk_overlap=chunk_overlap)
+            st.session_state.vector_store = create_vector_store(texts, embedding_model)
+    
     if "messages" not in st.session_state:
         st.session_state.messages = []
     if "chat_history" not in st.session_state:
         st.session_state.chat_history = []
-
-    # Configuration inputs
-    with st.sidebar:
-        directory = st.text_input("Pfad zu dem Ordner mit Dokumenten:", value=DEFAULT_DIRECTORY)
-        model_name = st.radio("KI Modell:", DEFAULT_MODEL_NAME)
-        embedding_model = DEFAULT_EMBEDDING_MODEL
-        prompt_template = DEFAULT_PROMPT_TEMPLATE
-        temperature = st.slider("Temperatur:", min_value=0.0, max_value=1.0, value=DEFAULT_TEMPERATURE)
-        max_tokens = DEFAULT_MAX_TOKENS
-        top_k = st.slider("Anzahl Ergebnisse Dokumentensuche", min_value=1, max_value=25, value=DEFAULT_TOP_K)
-        chunk_size = DEFAULT_CHUNK_SIZE
-        chunk_overlap = DEFAULT_CHUNK_OVERLAP
     
-        if directory and os.path.isdir(directory):
-            if st.button("Dokumente einlesen"):
-                with st.spinner("Verarbeite Dokumente..."):
-                    texts = load_docs(directory, chunk_size, chunk_overlap)
-                    vector_store = create_vector_store(texts, embedding_model)
-                    st.session_state.vector_store = vector_store
-                st.success("Dokumente erfolgreich eingelesen!")
+    with st.sidebar:
+        top_k = st.slider("Anzahl Ergebnisse Dokumentensuche", min_value=1, max_value=25, value=DEFAULT_TOP_K)
             
     # Display chat messages from history on app rerun
     for message in st.session_state.messages:
